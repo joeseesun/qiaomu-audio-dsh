@@ -19,7 +19,7 @@
 需要 DeepSeek Harness **>=0.2.1-rc.3 <0.3.0**。从 [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases) 下载 tgz，在 Harness 插件管理中安装并启用，侧栏打开“乔木语音”。也可使用应用自带 CLI：
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.0.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.1.tgz
 ```
 
 首次选择声音后可试听，再打开或输入 Markdown。默认文件位于 `DSH_HOME/qiaomu/qiaomu-audio-dsh/notes`，设置与草稿单独保存在同级 `state.json`；默认 `DSH_HOME` 为 `~/.dsh`。插件配置可指定绝对 `notesDir`/`dataDir`。不修改原 Obsidian 插件或它的数据。
@@ -43,3 +43,5 @@ npm pack
 Cordis 客户端通过可选注入 `qiaomuAudio` 使用 `speak`、`stop`、`transcribe`、`readNote`、`startDictation`。服务在语音面板关闭时仍能朗读和转写，需要编辑器的操作会打开语音面板。卸载或停止会取消未开始的播放。类型与可复用原版语音组件由 `qiaomu-audio-dsh/shared` 导出；不要将密钥加入持久化设置。
 
 源项目 [qiaomu-audio](https://github.com/joeseesun/qiaomu-audio)，GPL-3.0-only；第三方依赖与来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+`createSpeechBridge()` 为 Reader/RSS 提供独立的原生合成、音色目录和本地模型接口；`coordinateSpeech()` 协调跨插件播放。消费者在卸载时释放 bridge 与协调句柄。

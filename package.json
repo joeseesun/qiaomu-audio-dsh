@@ -1,6 +1,6 @@
 {
   "name": "qiaomu-audio-dsh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Qiaomu Audio for DeepSeek Harness",
@@ -12,7 +12,10 @@
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
-    "./shared": {"types":"./shared.d.ts","import":"./shared.js"},
+    "./shared": {
+      "types": "./shared.d.ts",
+      "import": "./shared.js"
+    },
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
