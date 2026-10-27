@@ -21784,6 +21784,16 @@ var TITLE = "\u4E54\u6728\u8BED\u97F3";
 var EN_TITLE = "Qiaomu Audio";
 var SERVICE = "qiaomuAudio";
 
+// src/original/shared/coordination.js
+var CLAIM = "qiaomu-speech:claim-v1";
+function coordinateSpeech(workspace2, pause) {
+  const source = {};
+  const ref = workspace2.on(CLAIM, (claimant) => {
+    if (claimant !== source) pause();
+  });
+  return { claim: () => workspace2.trigger(CLAIM, source), dispose: () => workspace2.offref(ref) };
+}
+
 // src/original/core/asr/providers.js
 var ASR_PROVIDERS = [
   { id: "siliconflow", label: "asr.provider.siliconflow", protocol: "openai-transcriptions", baseUrl: "https://api.siliconflow.cn/v1", defaultModel: "Qwen/Qwen3-ASR-1.7B", models: ["Qwen/Qwen3-ASR-1.7B", "FunAudioLLM/SenseVoiceSmall", "XingChenAGI/XingChenASR-V3.2"], keyHelp: "https://cloud.siliconflow.cn/account/ak", note: "asr.note.siliconflow" },
@@ -25545,16 +25555,6 @@ function setSecret(app, id2, value) {
   return app.secretStorage.setSecret(id2, String(value || "").trim());
 }
 
-// src/original/shared/coordination.js
-var CLAIM = "qiaomu-speech:claim-v1";
-function coordinateSpeech(workspace2, pause) {
-  const source = {};
-  const ref = workspace2.on(CLAIM, (claimant) => {
-    if (claimant !== source) pause();
-  });
-  return { claim: () => workspace2.trigger(CLAIM, source), dispose: () => workspace2.offref(ref) };
-}
-
 // src/original/speech.js
 var SpeechService = class {
   constructor(plugin) {
@@ -26020,7 +26020,7 @@ var workspace = () => ({ on(name2, fn) {
 } });
 function createSharedAudioService(api, { openPanel } = {}) {
   let active = null, standalone = null, initializing = null, disposed = false, speechGeneration = 0, settingsGeneration = 0;
-  const waiters = /* @__PURE__ */ new Set();
+  const waiters = /* @__PURE__ */ new Set(), bridges = /* @__PURE__ */ new Set(), coordinators = /* @__PURE__ */ new Set();
   const sources = createSpeechSources(api);
   const clearStandalone = () => {
     standalone?.plugin.speech.dispose();
@@ -26105,6 +26105,42 @@ function createSharedAudioService(api, { openPanel } = {}) {
   }
   return {
     version: 1,
+    coordinateSpeech(pause) {
+      if (disposed) throw Error("Audio service is disconnected");
+      const entry = coordinateSpeech(workspace(), pause);
+      coordinators.add(entry);
+      let closed = false;
+      return { claim() {
+        if (!closed && !disposed) entry.claim();
+      }, dispose() {
+        if (closed) return;
+        closed = true;
+        coordinators.delete(entry);
+        entry.dispose();
+      } };
+    },
+    async createSpeechBridge() {
+      if (disposed) throw Error("Audio service is disconnected");
+      const info = await api.info();
+      if (disposed) throw Error("Audio service is disconnected");
+      const bridge = new NativeBridge(api);
+      bridges.add(bridge);
+      let closed = false;
+      const live = (fn) => (...args) => {
+        if (closed || disposed) throw Error("Audio speech bridge is disconnected");
+        const result = fn(...args);
+        return result?.then ? result.then((value) => {
+          if (closed || disposed) throw Error("Audio speech bridge is disconnected");
+          return value;
+        }) : result;
+      };
+      return { platform: info.platform, speech: live((...args) => bridge.speech(...args)), voices: live((...args) => bridge.voices(...args)), snapshot: live((id2) => bridge.snapshot(id2)), status: live((id2) => bridge.status(id2)), install: live((id2) => bridge.install(id2)), cancelInstall: live((id2) => bridge.cancelInstall(id2)), subscribe: live((fn) => bridge.subscribe(fn)), dispose() {
+        if (closed) return;
+        closed = true;
+        bridges.delete(bridge);
+        bridge.dispose();
+      } };
+    },
     registerSpeechSource: (id2, provider) => sources.register(id2, provider),
     speechSettings: (id2) => sources.read(id2),
     importSpeech: (id2) => sources.copy(id2),
@@ -26147,6 +26183,10 @@ function createSharedAudioService(api, { openPanel } = {}) {
       disposed = true;
       speechGeneration++;
       sources.dispose();
+      for (const entry of coordinators) entry.dispose();
+      coordinators.clear();
+      for (const bridge of bridges) bridge.dispose();
+      bridges.clear();
       active?.api.stop();
       active = null;
       clearStandalone();

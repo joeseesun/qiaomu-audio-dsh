@@ -52,6 +52,8 @@ export class NativeBridge {
 }
 export interface AudioRemote {operation(request:{method:string;input:unknown}):Promise<{value?:any;failure?:{message:string}}>}
 export interface QiaomuAudioService {
+ coordinateSpeech(pause:()=>void):{claim():void;dispose():void};
+ createSpeechBridge():Promise<Pick<NativeBridge,"speech"|"voices"|"snapshot"|"status"|"install"|"cancelInstall"|"subscribe"|"dispose"> & {platform:string}>;
  readonly version:1;speak(text:string):Promise<void>;stop():void;isReading():boolean;isDictating():boolean;
  transcribe(audio:Blob|ArrayBuffer|Uint8Array|Float32Array,options?:{sampleRate?:number;signal?:AbortSignal}):Promise<string>;
  readNote(view?:unknown):Promise<unknown>;startDictation(view?:unknown):Promise<unknown>;

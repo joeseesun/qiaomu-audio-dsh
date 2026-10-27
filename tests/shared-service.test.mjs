@@ -31,3 +31,10 @@ test('foreground operations await panel mount and reject on unload',async()=>{
 test('unload during host initialization never starts audio',async()=>{
  const f=fixture(),service=createSharedAudioService(f.api),pending=service.speak('late');service.dispose();f.resolve();await assert.rejects(pending,/disconnected/);assert.equal(f.counts().speaks,0);
 });
+test('independent Reader bridge returns audio and cancels pending work on unload',async()=>{
+ const calls=[],pending=deferred();const service=createSharedAudioService({info:async()=>({platform:'darwin'}),operation:async request=>{calls.push(request);if(request.method==='speech')return pending.promise;return {value:{phase:'ready'}};}});
+ const bridge=await service.createSpeechBridge();assert.equal(bridge.platform,'darwin');const speech=bridge.speech({id:'macos',voice:''},'Reader fixture');assert.equal(calls[0].method,'speech');assert.equal(await bridge.status('kokoro').then(x=>x.phase),'ready');service.dispose();assert.ok(calls.some(x=>x.method==='cancel'&&x.input.id===calls[0].input.id));pending.resolve({value:{base64:btoa('wav'),mime:'audio/wav'}});await assert.rejects(speech,/disconnected/);assert.throws(()=>bridge.speech({},'closed'),/disconnected/);bridge.dispose();
+});
+test('Reader and Audio share speech ownership and release workspace listeners',()=>{
+ const service=createSharedAudioService({});let a=0,b=0;const reader=service.coordinateSpeech(()=>a++),audio=service.coordinateSpeech(()=>b++);reader.claim();assert.equal(a,0);assert.equal(b,1);audio.claim();assert.equal(a,1);reader.dispose();audio.claim();assert.equal(a,1);service.dispose();reader.claim();audio.claim();assert.equal(b,1);
+});

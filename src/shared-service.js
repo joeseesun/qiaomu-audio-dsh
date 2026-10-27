@@ -1,3 +1,4 @@
+import {coordinateSpeech} from './original/shared/coordination.js';
 import {NativeBridge} from './native-bridge.js';
 import {SpeechService} from './original/speech.js';
 import {TranscriptionService} from './original/transcription.js';
@@ -9,7 +10,7 @@ const workspace=()=>({on(name,fn){const listener=e=>fn(e.detail);document.addEve
 /** The public v1 API remains usable while another Harness panel is active. */
 export function createSharedAudioService(api,{openPanel}={}) {
  let active=null,standalone=null,initializing=null,disposed=false,speechGeneration=0,settingsGeneration=0;
- const waiters=new Set();
+ const waiters=new Set(),bridges=new Set(),coordinators=new Set();
  const sources=createSpeechSources(api);
  const clearStandalone=()=>{standalone?.plugin.speech.dispose();standalone?.plugin.bridge.dispose();standalone?.secrets.clear();standalone=null;};
  async function background(){
@@ -39,6 +40,14 @@ export function createSharedAudioService(api,{openPanel}={}) {
  }
  return {
   version:1,
+  coordinateSpeech(pause){if(disposed)throw Error('Audio service is disconnected');const entry=coordinateSpeech(workspace(),pause);coordinators.add(entry);let closed=false;return{claim(){if(!closed&&!disposed)entry.claim();},dispose(){if(closed)return;closed=true;coordinators.delete(entry);entry.dispose();}};},
+  async createSpeechBridge(){
+   if(disposed)throw Error('Audio service is disconnected');
+   const info=await api.info();if(disposed)throw Error('Audio service is disconnected');
+   const bridge=new NativeBridge(api);bridges.add(bridge);let closed=false;
+   const live=fn=>(...args)=>{if(closed||disposed)throw Error('Audio speech bridge is disconnected');const result=fn(...args);return result?.then?result.then(value=>{if(closed||disposed)throw Error('Audio speech bridge is disconnected');return value;}):result;};
+   return {platform:info.platform,speech:live((...args)=>bridge.speech(...args)),voices:live((...args)=>bridge.voices(...args)),snapshot:live(id=>bridge.snapshot(id)),status:live(id=>bridge.status(id)),install:live(id=>bridge.install(id)),cancelInstall:live(id=>bridge.cancelInstall(id)),subscribe:live(fn=>bridge.subscribe(fn)),dispose(){if(closed)return;closed=true;bridges.delete(bridge);bridge.dispose();}};
+  },
   registerSpeechSource:(id,provider)=>sources.register(id,provider),
   speechSettings:id=>sources.read(id),
   importSpeech:id=>sources.copy(id),
@@ -51,6 +60,6 @@ export function createSharedAudioService(api,{openPanel}={}) {
   async startDictation(view){return (await foreground()).startDictation(view);},
   attach(plugin,view){clearStandalone();const entry={api:createApi(plugin,()=>view)};active=entry;for(const waiter of [...waiters])waiter(entry.api);return()=>{if(active===entry)active=null;};},
   settingsChanged(){settingsGeneration++;clearStandalone();},
-  dispose(){disposed=true;speechGeneration++;sources.dispose();active?.api.stop();active=null;clearStandalone();for(const waiter of [...waiters])waiter(null);},
+  dispose(){disposed=true;speechGeneration++;sources.dispose();for(const entry of coordinators)entry.dispose();coordinators.clear();for(const bridge of bridges)bridge.dispose();bridges.clear();active?.api.stop();active=null;clearStandalone();for(const waiter of [...waiters])waiter(null);},
  };
 }
