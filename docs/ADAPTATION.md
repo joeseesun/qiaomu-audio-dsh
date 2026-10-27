@@ -46,3 +46,9 @@
 - 直接运行 Reader 的 `createReaderSpeech`、原版 `attachTts`/`TtsController`，连接本产品真实 `createSharedAudioService` 和 `AudioHost`；macOS 清和音色为两章实际合成 48 kHz PCM WAV（413,058 字节/4.302229 秒、189,322 字节/1.971646 秒），恢复标记写入第二章；竞争朗读触发暂停。此项是 Node/JSDOM + 本机语音进程联调，不冒充 Harness 浏览器播放验收。
 - Reader 的原版音色、试听恢复、倍速、密钥设置、跨章、恢复和取消测试通过；Audio 当前 127 项回归、构建和包入口检查通过。
 - Reader 当前适配分支注册真实设置来源；RSS 注册仍待其迁移。浏览器由用户使用，本轮没有操作浏览器。
+
+## 0.1.2 — RSS 原版设置页导入
+
+新增只读 `exportSpeechSettings()`，普通发现不读取任何凭据，只有显式 `includeSecrets:true` 返回已配置 TTS provider 的密钥。设置经过原版规范化；不包含 ASR、其他插件或 JSON 中的 key 字段；读取失败、卸载中的迟到响应均拒绝返回部分结果。RSS 在原版“导入语音设置”按钮中使用，不修改 Audio 的界面或 CSS。
+
+129 项自动测试与构建/打包检查通过，新增覆盖发现无密钥读取、显式导入、未配置服务排除、卸载和凭据错误。本轮未操作用户控制中的浏览器，也未重启日用 Harness；新 API 的安装结果与运行时验收需分别记录。

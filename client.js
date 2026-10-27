@@ -26144,6 +26144,26 @@ function createSharedAudioService(api, { openPanel } = {}) {
     registerSpeechSource: (id2, provider) => sources.register(id2, provider),
     speechSettings: (id2) => sources.read(id2),
     importSpeech: (id2) => sources.copy(id2),
+    async exportSpeechSettings({ includeSecrets = false } = {}) {
+      if (disposed) throw Error("Audio service is disconnected");
+      const saved = await api.load();
+      if (disposed) throw Error("Audio service is disconnected");
+      const tts = normalizeSettings(saved.data.settings).tts;
+      if (includeSecrets !== true) return tts;
+      const secrets = {};
+      for (const provider of Object.keys(tts.profiles)) {
+        if (["system", "macos", "edge", "localModel"].includes(provider)) continue;
+        const result = await api.operation({ method: "secrets", input: { operation: "get", id: ttsSecretId(provider, "qiaomu-audio-dsh") } });
+        if (disposed) throw Error("Audio service is disconnected");
+        if (result.failure) throw Error("Could not read speech credential");
+        const value = result.value?.value;
+        if (value) {
+          if (typeof value !== "string" || value.length > 8192) throw Error("Invalid speech credential");
+          secrets[provider] = value;
+        }
+      }
+      return { tts, secrets };
+    },
     async speak(text3) {
       const generation = ++speechGeneration;
       const service = await background2();
