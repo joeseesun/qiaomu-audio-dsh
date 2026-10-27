@@ -48,3 +48,13 @@ test('late export and credential failures cannot return partial secrets',async()
  const gate=deferred();const service=createSharedAudioService({load:()=>gate.promise});const pending=service.exportSpeechSettings({includeSecrets:true});service.dispose();gate.resolve({data:{settings:{}}});await assert.rejects(pending,/disconnected/);
  const bad=createSharedAudioService({load:async()=>({data:{settings:{tts:{provider:'openai',profiles:{openai:{}}}}}}),operation:async()=>({failure:{message:'redacted'}})});await assert.rejects(bad.exportSpeechSettings({includeSecrets:true}),/Could not read/);bad.dispose();
 });
+
+test('default cloud voice retains credentials without an explicit profile override',async()=>{
+ let reads=0;const service=createSharedAudioService({load:async()=>({data:{settings:{tts:{provider:'openai',profiles:{}}}}}),operation:async request=>{assert.equal(request.input.id,'qiaomu-audio-dsh-tts-openai');reads++;return{value:{value:'fixture'}};}});
+ const result=await service.exportSpeechSettings({includeSecrets:true});assert.deepEqual(result.secrets,{openai:'fixture'});assert.equal(reads,1);service.dispose();
+});
+
+test('background speech reads the selected default provider key before synthesis',async()=>{
+ const oldAudio=window.Audio;window.Audio=class{async play(){}pause(){}removeAttribute(){}load(){}};let request;const service=createSharedAudioService({info:async()=>({platform:'darwin'}),load:async()=>({data:{settings:{tts:{provider:'openai',profiles:{}}}}}),operation:async value=>{if(value.method==='secrets')return{value:{value:'default-key'}};if(value.method==='speech'){request=value.input;return{value:{base64:btoa('wav'),mime:'audio/wav'}};}return{value:{}};}});
+ const pending=service.speak('fixture');try{for(let i=0;i<30&&!request;i++)await new Promise(r=>setTimeout(r,5));assert.equal(request.profile.key,'default-key');}finally{service.stop();await pending;service.dispose();window.Audio=oldAudio;}
+});

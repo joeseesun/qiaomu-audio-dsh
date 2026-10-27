@@ -1,3 +1,4 @@
+import {ttsCredentialProviders} from './tts-credentials.js';
 import {coordinateSpeech} from './original/shared/coordination.js';
 import {NativeBridge} from './native-bridge.js';
 import {SpeechService} from './original/speech.js';
@@ -26,7 +27,7 @@ export function createSharedAudioService(api,{openPanel}={}) {
     async saveSettings(){const result=await api.save({revision,data:{...saved.data,settings:normalizeSettings(plugin.settings)}});revision=result.revision;},
     reading:{stop(){},isPlaying:()=>false},dictation:{isActive:()=>false},
    };
-   const settings=plugin.settings;const ids=[...Object.keys(settings.tts.profiles).filter(id=>!['system','macos','edge','localModel'].includes(id)).map(id=>ttsSecretId(id,'qiaomu-audio-dsh')),...settings.asr.profiles.map(p=>asrSecretId(p.id,p.provider))];
+   const settings=plugin.settings;const ids=[...ttsCredentialProviders(settings.tts).map(id=>ttsSecretId(id,'qiaomu-audio-dsh')),...settings.asr.profiles.map(p=>asrSecretId(p.id,p.provider))];
    try{await Promise.all(ids.map(async id=>secrets.set(id,(await bridge.call('secrets',{operation:'get',id})).value)));if(disposed||active||generation!==settingsGeneration){bridge.dispose();secrets.clear();if(disposed)throw Error('Audio service is disconnected');if(active)return active.api;throw Error('Audio settings changed; retry the operation');}
     plugin.speech=new SpeechService(plugin);plugin.transcription=new TranscriptionService(plugin);standalone={plugin,secrets,api:createApi(plugin)};return standalone.api;
    }catch(error){bridge.dispose();secrets.clear();throw error;}
@@ -58,8 +59,7 @@ export function createSharedAudioService(api,{openPanel}={}) {
    if(includeSecrets!==true)return tts;
    // Only the explicit import action requests credentials; discovery returns settings alone.
    const secrets={};
-   for(const provider of Object.keys(tts.profiles)){
-    if(['system','macos','edge','localModel'].includes(provider))continue;
+   for(const provider of ttsCredentialProviders(tts)){
     const result=await api.operation({method:'secrets',input:{operation:'get',id:ttsSecretId(provider,'qiaomu-audio-dsh')}});
     if(disposed)throw Error('Audio service is disconnected');
     if(result.failure)throw Error('Could not read speech credential');

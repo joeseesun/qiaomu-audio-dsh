@@ -21784,6 +21784,187 @@ var TITLE = "\u4E54\u6728\u8BED\u97F3";
 var EN_TITLE = "Qiaomu Audio";
 var SERVICE = "qiaomuAudio";
 
+// src/original/core/tts/timing.js
+var PAUSE = /[，、；;,:：]/u;
+var STOP = /[。！？.!?…\n]/u;
+var CLOSE = /["'”’）)」』】》]/u;
+function tokens(text3) {
+  const out = [], re3 = /[㐀-鿿぀-ヿ가-힯]|[\p{L}\p{N}'’_-]+|[^\s]/gu;
+  let match;
+  while (match = re3.exec(text3)) {
+    const value = match[0], s = match.index, e = s + value.length;
+    const last3 = out.at(-1);
+    if (/^[\p{P}\p{S}]$/u.test(value) && last3) {
+      last3.e = e;
+      last3.weight += STOP.test(value) ? 2.2 : PAUSE.test(value) ? 1.2 : CLOSE.test(value) ? 0 : 0.4;
+      continue;
+    }
+    const cjk = /^[㐀-鿿぀-ヿ가-힯]$/u.test(value);
+    out.push({ s, e, weight: cjk ? 1 : 1.3 + 0.18 * value.length });
+  }
+  return out;
+}
+function estimateMarks(text3, duration, start = 0) {
+  if (!(duration > 0)) return [];
+  const list = tokens(text3), total = list.reduce((sum, x) => sum + x.weight, 0);
+  if (!total) return [];
+  let at2 = start;
+  return list.map((x) => {
+    const from = at2;
+    at2 += duration * x.weight / total;
+    return { s: x.s, e: x.e, from, to: at2 };
+  });
+}
+function markIndex(marks2, t3) {
+  let low = 0, high = marks2.length - 1, found = -1;
+  while (low <= high) {
+    const mid = low + high >> 1;
+    if (marks2[mid].from <= t3) {
+      found = mid;
+      low = mid + 1;
+    } else high = mid - 1;
+  }
+  return found;
+}
+
+// src/original/core/tts/providers.js
+var TTS_PROVIDERS = Object.freeze({
+  system: { label: "System voice", voice: "", model: "" },
+  macos: { label: "Mac local speech", voice: "", model: "" },
+  localModel: { label: "Local models", voice: "zf_001", model: "kokoro" },
+  edge: { label: "Edge TTS", voice: "zh-CN-XiaoxiaoNeural", model: "" },
+  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini-tts", voice: "coral" },
+  compatible: { label: "OpenAI-compatible", baseUrl: "", model: "", voice: "" },
+  qwen: { label: "Qwen TTS", baseUrl: "https://dashscope.aliyuncs.com/api/v1", model: "qwen3-tts-flash", voice: "Cherry" },
+  doubao: { label: "Doubao", baseUrl: "https://openspeech.bytedance.com/api/v3/tts", resourceId: "seed-tts-2.0", voice: "zh_female_vv_uranus_bigtts" },
+  minimax: { label: "MiniMax", baseUrl: "https://api.minimax.cn/v1", model: "speech-2.8-hd", voice: "male-qn-qingse" },
+  siliconflow: { label: "SiliconFlow", baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/CosyVoice2-0.5B", voice: "FunAudioLLM/CosyVoice2-0.5B:alex" },
+  elevenlabs: { label: "ElevenLabs", baseUrl: "https://api.elevenlabs.io/v1", model: "eleven_multilingual_v2", voice: "JBFqnCBsd6RMkjVDRZzb" },
+  azure: { label: "Azure Speech", region: "", model: "", voice: "zh-CN-XiaoxiaoNeural" }
+});
+function ttsProfile(settings, id2 = settings?.provider || "system") {
+  return { ...TTS_PROVIDERS[id2], ...settings?.profiles?.[id2], id: id2 };
+}
+function ttsError(code2, status) {
+  return Object.assign(new Error(code2), { code: code2, status });
+}
+function checkTtsSignal(signal) {
+  if (signal?.aborted) throw Object.assign(new Error("Cancelled"), { name: "AbortError" });
+}
+function escapeSpeechXml(text3) {
+  return String(text3).replace(/[&<>"']/g, (c3) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c3]);
+}
+function ttsBaseUrl(value) {
+  let url2;
+  try {
+    url2 = new URL(value);
+  } catch {
+    throw ttsError("url");
+  }
+  if (!["https:", "http:"].includes(url2.protocol) || url2.username || url2.password || url2.search || url2.hash) throw ttsError("url");
+  if (url2.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url2.hostname)) throw ttsError("https");
+  return url2.href.replace(/\/+$/, "").replace(/\/audio\/speech$/, "");
+}
+function doubaoTiming(resourceId, enabled) {
+  if (!enabled) return {};
+  return /2\.0/.test(resourceId) ? { enable_subtitle: true } : /1\.0/.test(resourceId) ? { enable_timestamp: true } : {};
+}
+function buildSpeechRequest(profile, text3, key = "", timing = false) {
+  const { id: id2, voice, model } = profile;
+  if (!TTS_PROVIDERS[id2] || ["system", "macos", "edge"].includes(id2)) throw ttsError("provider");
+  if (id2 !== "compatible" && !key) throw ttsError("key");
+  if (!voice || !["azure", "doubao"].includes(id2) && !model) throw ttsError("configuration");
+  const headers = { "Content-Type": "application/json" };
+  if (key) headers.Authorization = `Bearer ${key}`;
+  if (id2 === "azure") {
+    if (!/^[a-z0-9-]+$/.test(profile.region || "")) throw ttsError("region");
+    return {
+      url: `https://${profile.region}.tts.speech.microsoft.com/cognitiveservices/v1`,
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3" },
+      body: `<speak version="1.0" xml:lang="${escapeSpeechXml(voice.split("-").slice(0, 2).join("-"))}"><voice name="${escapeSpeechXml(voice)}">${escapeSpeechXml(text3)}</voice></speak>`
+    };
+  }
+  const base2 = ttsBaseUrl(profile.baseUrl);
+  if (id2 === "doubao") {
+    if (!profile.resourceId) throw ttsError("resource");
+    return {
+      url: `${base2}/unidirectional`,
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Api-Key": key, "X-Api-Resource-Id": profile.resourceId, "X-Api-Request-Id": globalThis.crypto.randomUUID() },
+      body: JSON.stringify({ req_params: { text: text3, speaker: voice, audio_params: { format: "mp3", sample_rate: 24e3, ...doubaoTiming(profile.resourceId, timing) } } })
+    };
+  }
+  if (id2 === "minimax") return {
+    url: `${base2}/t2a_v2`,
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model,
+      text: text3,
+      stream: false,
+      output_format: "hex",
+      voice_setting: { voice_id: voice, speed: 1, vol: 1, pitch: 0 },
+      audio_setting: { format: "mp3", sample_rate: 32e3, bitrate: 128e3, channel: 1 }
+    })
+  };
+  if (id2 === "elevenlabs") return {
+    url: `${base2}/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`,
+    method: "POST",
+    headers: { "Content-Type": "application/json", "xi-api-key": key },
+    body: JSON.stringify({ text: text3, model_id: model })
+  };
+  if (id2 === "qwen") return {
+    url: `${base2}/services/aigc/multimodal-generation/generation`,
+    method: "POST",
+    headers,
+    body: JSON.stringify({ model, input: { text: text3, voice, language_type: "Auto" } })
+  };
+  return {
+    url: `${base2}/audio/speech`,
+    method: "POST",
+    headers,
+    body: JSON.stringify({ model, input: text3, voice, response_format: "mp3" })
+  };
+}
+var SpeechCache = class {
+  constructor(limit = 20 * 1024 * 1024) {
+    this.limit = limit;
+    this.bytes = 0;
+    this.entries = /* @__PURE__ */ new Map();
+  }
+  get(key) {
+    const value = this.entries.get(key);
+    if (value) {
+      this.entries.delete(key);
+      this.entries.set(key, value);
+    }
+    return value;
+  }
+  set(key, value) {
+    const size2 = value.bytes.byteLength;
+    if (size2 > this.limit) return;
+    if (this.entries.has(key)) this.bytes -= this.entries.get(key).bytes.byteLength;
+    this.entries.delete(key);
+    this.entries.set(key, value);
+    this.bytes += size2;
+    while (this.bytes > this.limit) {
+      const first = this.entries.keys().next().value;
+      this.bytes -= this.entries.get(first).bytes.byteLength;
+      this.entries.delete(first);
+    }
+  }
+  clear() {
+    this.entries.clear();
+    this.bytes = 0;
+  }
+};
+
+// src/tts-credentials.js
+function ttsCredentialProviders(tts) {
+  return [.../* @__PURE__ */ new Set([tts?.provider, ...Object.keys(tts?.profiles || {})])].filter((id2) => TTS_PROVIDERS[id2] && !["system", "macos", "edge", "localModel"].includes(id2));
+}
+
 // src/original/shared/coordination.js
 var CLAIM = "qiaomu-speech:claim-v1";
 function coordinateSpeech(workspace2, pause) {
@@ -22430,182 +22611,6 @@ function errorText(error, provider) {
   if (!STRINGS[key]) return t("error.network");
   return t(key, { status: error.status ?? error.detail ?? "", detail: error.detail || error.status || "" });
 }
-
-// src/original/core/tts/timing.js
-var PAUSE = /[，、；;,:：]/u;
-var STOP = /[。！？.!?…\n]/u;
-var CLOSE = /["'”’）)」』】》]/u;
-function tokens(text3) {
-  const out = [], re3 = /[㐀-鿿぀-ヿ가-힯]|[\p{L}\p{N}'’_-]+|[^\s]/gu;
-  let match;
-  while (match = re3.exec(text3)) {
-    const value = match[0], s = match.index, e = s + value.length;
-    const last3 = out.at(-1);
-    if (/^[\p{P}\p{S}]$/u.test(value) && last3) {
-      last3.e = e;
-      last3.weight += STOP.test(value) ? 2.2 : PAUSE.test(value) ? 1.2 : CLOSE.test(value) ? 0 : 0.4;
-      continue;
-    }
-    const cjk = /^[㐀-鿿぀-ヿ가-힯]$/u.test(value);
-    out.push({ s, e, weight: cjk ? 1 : 1.3 + 0.18 * value.length });
-  }
-  return out;
-}
-function estimateMarks(text3, duration, start = 0) {
-  if (!(duration > 0)) return [];
-  const list = tokens(text3), total = list.reduce((sum, x) => sum + x.weight, 0);
-  if (!total) return [];
-  let at2 = start;
-  return list.map((x) => {
-    const from = at2;
-    at2 += duration * x.weight / total;
-    return { s: x.s, e: x.e, from, to: at2 };
-  });
-}
-function markIndex(marks2, t3) {
-  let low = 0, high = marks2.length - 1, found = -1;
-  while (low <= high) {
-    const mid = low + high >> 1;
-    if (marks2[mid].from <= t3) {
-      found = mid;
-      low = mid + 1;
-    } else high = mid - 1;
-  }
-  return found;
-}
-
-// src/original/core/tts/providers.js
-var TTS_PROVIDERS = Object.freeze({
-  system: { label: "System voice", voice: "", model: "" },
-  macos: { label: "Mac local speech", voice: "", model: "" },
-  localModel: { label: "Local models", voice: "zf_001", model: "kokoro" },
-  edge: { label: "Edge TTS", voice: "zh-CN-XiaoxiaoNeural", model: "" },
-  openai: { label: "OpenAI", baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini-tts", voice: "coral" },
-  compatible: { label: "OpenAI-compatible", baseUrl: "", model: "", voice: "" },
-  qwen: { label: "Qwen TTS", baseUrl: "https://dashscope.aliyuncs.com/api/v1", model: "qwen3-tts-flash", voice: "Cherry" },
-  doubao: { label: "Doubao", baseUrl: "https://openspeech.bytedance.com/api/v3/tts", resourceId: "seed-tts-2.0", voice: "zh_female_vv_uranus_bigtts" },
-  minimax: { label: "MiniMax", baseUrl: "https://api.minimax.cn/v1", model: "speech-2.8-hd", voice: "male-qn-qingse" },
-  siliconflow: { label: "SiliconFlow", baseUrl: "https://api.siliconflow.cn/v1", model: "FunAudioLLM/CosyVoice2-0.5B", voice: "FunAudioLLM/CosyVoice2-0.5B:alex" },
-  elevenlabs: { label: "ElevenLabs", baseUrl: "https://api.elevenlabs.io/v1", model: "eleven_multilingual_v2", voice: "JBFqnCBsd6RMkjVDRZzb" },
-  azure: { label: "Azure Speech", region: "", model: "", voice: "zh-CN-XiaoxiaoNeural" }
-});
-function ttsProfile(settings, id2 = settings?.provider || "system") {
-  return { ...TTS_PROVIDERS[id2], ...settings?.profiles?.[id2], id: id2 };
-}
-function ttsError(code2, status) {
-  return Object.assign(new Error(code2), { code: code2, status });
-}
-function checkTtsSignal(signal) {
-  if (signal?.aborted) throw Object.assign(new Error("Cancelled"), { name: "AbortError" });
-}
-function escapeSpeechXml(text3) {
-  return String(text3).replace(/[&<>"']/g, (c3) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c3]);
-}
-function ttsBaseUrl(value) {
-  let url2;
-  try {
-    url2 = new URL(value);
-  } catch {
-    throw ttsError("url");
-  }
-  if (!["https:", "http:"].includes(url2.protocol) || url2.username || url2.password || url2.search || url2.hash) throw ttsError("url");
-  if (url2.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url2.hostname)) throw ttsError("https");
-  return url2.href.replace(/\/+$/, "").replace(/\/audio\/speech$/, "");
-}
-function doubaoTiming(resourceId, enabled) {
-  if (!enabled) return {};
-  return /2\.0/.test(resourceId) ? { enable_subtitle: true } : /1\.0/.test(resourceId) ? { enable_timestamp: true } : {};
-}
-function buildSpeechRequest(profile, text3, key = "", timing = false) {
-  const { id: id2, voice, model } = profile;
-  if (!TTS_PROVIDERS[id2] || ["system", "macos", "edge"].includes(id2)) throw ttsError("provider");
-  if (id2 !== "compatible" && !key) throw ttsError("key");
-  if (!voice || !["azure", "doubao"].includes(id2) && !model) throw ttsError("configuration");
-  const headers = { "Content-Type": "application/json" };
-  if (key) headers.Authorization = `Bearer ${key}`;
-  if (id2 === "azure") {
-    if (!/^[a-z0-9-]+$/.test(profile.region || "")) throw ttsError("region");
-    return {
-      url: `https://${profile.region}.tts.speech.microsoft.com/cognitiveservices/v1`,
-      method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": key, "Content-Type": "application/ssml+xml", "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3" },
-      body: `<speak version="1.0" xml:lang="${escapeSpeechXml(voice.split("-").slice(0, 2).join("-"))}"><voice name="${escapeSpeechXml(voice)}">${escapeSpeechXml(text3)}</voice></speak>`
-    };
-  }
-  const base2 = ttsBaseUrl(profile.baseUrl);
-  if (id2 === "doubao") {
-    if (!profile.resourceId) throw ttsError("resource");
-    return {
-      url: `${base2}/unidirectional`,
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Api-Key": key, "X-Api-Resource-Id": profile.resourceId, "X-Api-Request-Id": globalThis.crypto.randomUUID() },
-      body: JSON.stringify({ req_params: { text: text3, speaker: voice, audio_params: { format: "mp3", sample_rate: 24e3, ...doubaoTiming(profile.resourceId, timing) } } })
-    };
-  }
-  if (id2 === "minimax") return {
-    url: `${base2}/t2a_v2`,
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      text: text3,
-      stream: false,
-      output_format: "hex",
-      voice_setting: { voice_id: voice, speed: 1, vol: 1, pitch: 0 },
-      audio_setting: { format: "mp3", sample_rate: 32e3, bitrate: 128e3, channel: 1 }
-    })
-  };
-  if (id2 === "elevenlabs") return {
-    url: `${base2}/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`,
-    method: "POST",
-    headers: { "Content-Type": "application/json", "xi-api-key": key },
-    body: JSON.stringify({ text: text3, model_id: model })
-  };
-  if (id2 === "qwen") return {
-    url: `${base2}/services/aigc/multimodal-generation/generation`,
-    method: "POST",
-    headers,
-    body: JSON.stringify({ model, input: { text: text3, voice, language_type: "Auto" } })
-  };
-  return {
-    url: `${base2}/audio/speech`,
-    method: "POST",
-    headers,
-    body: JSON.stringify({ model, input: text3, voice, response_format: "mp3" })
-  };
-}
-var SpeechCache = class {
-  constructor(limit = 20 * 1024 * 1024) {
-    this.limit = limit;
-    this.bytes = 0;
-    this.entries = /* @__PURE__ */ new Map();
-  }
-  get(key) {
-    const value = this.entries.get(key);
-    if (value) {
-      this.entries.delete(key);
-      this.entries.set(key, value);
-    }
-    return value;
-  }
-  set(key, value) {
-    const size2 = value.bytes.byteLength;
-    if (size2 > this.limit) return;
-    if (this.entries.has(key)) this.bytes -= this.entries.get(key).bytes.byteLength;
-    this.entries.delete(key);
-    this.entries.set(key, value);
-    this.bytes += size2;
-    while (this.bytes > this.limit) {
-      const first = this.entries.keys().next().value;
-      this.bytes -= this.entries.get(first).bytes.byteLength;
-      this.entries.delete(first);
-    }
-  }
-  clear() {
-    this.entries.clear();
-    this.bytes = 0;
-  }
-};
 
 // src/original/core/tts/recent.js
 var FIELDS = ["voice", "model", "baseUrl", "region", "resourceId"];
@@ -26055,7 +26060,7 @@ function createSharedAudioService(api, { openPanel } = {}) {
         dictation: { isActive: () => false }
       };
       const settings = plugin.settings;
-      const ids = [...Object.keys(settings.tts.profiles).filter((id2) => !["system", "macos", "edge", "localModel"].includes(id2)).map((id2) => ttsSecretId(id2, "qiaomu-audio-dsh")), ...settings.asr.profiles.map((p) => asrSecretId(p.id, p.provider))];
+      const ids = [...ttsCredentialProviders(settings.tts).map((id2) => ttsSecretId(id2, "qiaomu-audio-dsh")), ...settings.asr.profiles.map((p) => asrSecretId(p.id, p.provider))];
       try {
         await Promise.all(ids.map(async (id2) => secrets.set(id2, (await bridge.call("secrets", { operation: "get", id: id2 })).value)));
         if (disposed || active || generation !== settingsGeneration) {
@@ -26151,8 +26156,7 @@ function createSharedAudioService(api, { openPanel } = {}) {
       const tts = normalizeSettings(saved.data.settings).tts;
       if (includeSecrets !== true) return tts;
       const secrets = {};
-      for (const provider of Object.keys(tts.profiles)) {
-        if (["system", "macos", "edge", "localModel"].includes(provider)) continue;
+      for (const provider of ttsCredentialProviders(tts)) {
         const result = await api.operation({ method: "secrets", input: { operation: "get", id: ttsSecretId(provider, "qiaomu-audio-dsh") } });
         if (disposed) throw Error("Audio service is disconnected");
         if (result.failure) throw Error("Could not read speech credential");
@@ -70321,7 +70325,7 @@ async function mountAudio(root, api, { actions, language: language3 } = {}) {
   let draftTimer;
   let revision = loaded.revision, saveQueue = Promise.resolve(), closed = false, doc2 = loaded.data.document || { path: "\u8BED\u97F3\u7B14\u8BB0.md", text: "", etag: null }, dirty = false, assetFiles = assetList;
   const bridge = new NativeBridge(api, actions?.speechImporter), disposers = [], secrets = /* @__PURE__ */ new Map(), settings = normalizeSettings(loaded.data.settings);
-  const keys = [...Object.keys(settings.tts.profiles).filter((id2) => !["system", "macos", "edge", "localModel"].includes(id2)).map((id2) => ttsSecretId(id2, "qiaomu-audio-dsh")), ...settings.asr.profiles.map((p) => asrSecretId(p.id, p.provider))];
+  const keys = [...ttsCredentialProviders(settings.tts).map((id2) => ttsSecretId(id2, "qiaomu-audio-dsh")), ...settings.asr.profiles.map((p) => asrSecretId(p.id, p.provider))];
   await Promise.all(keys.map(async (id2) => {
     secrets.set(id2, (await bridge.call("secrets", { operation: "get", id: id2 })).value);
   }));
