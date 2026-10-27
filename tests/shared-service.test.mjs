@@ -38,3 +38,13 @@ test('independent Reader bridge returns audio and cancels pending work on unload
 test('Reader and Audio share speech ownership and release workspace listeners',()=>{
  const service=createSharedAudioService({});let a=0,b=0;const reader=service.coordinateSpeech(()=>a++),audio=service.coordinateSpeech(()=>b++);reader.claim();assert.equal(a,0);assert.equal(b,1);audio.claim();assert.equal(a,1);reader.dispose();audio.claim();assert.equal(a,1);service.dispose();reader.claim();audio.claim();assert.equal(b,1);
 });
+
+test('RSS discovery never reads credentials; explicit import returns only configured TTS keys',async()=>{
+ const calls=[];const api={load:async()=>({data:{settings:{tts:{provider:'openai',profiles:{openai:{voice:'alloy',key:'must-strip'},macos:{voice:'Linfei'}}},asr:{profiles:[{id:'private'}]}}}}),operation:async request=>{calls.push(request);return{value:{value:'fixture-key'}};}};
+ const service=createSharedAudioService(api),settings=await service.exportSpeechSettings();assert.equal(settings.provider,'openai');assert.equal(settings.profiles.openai.key,undefined);assert.equal(calls.length,0);await service.exportSpeechSettings({includeSecrets:'false'});assert.equal(calls.length,0);
+ settings.profiles.openai.voice='changed';const result=await service.exportSpeechSettings({includeSecrets:true});assert.equal(result.tts.profiles.openai.voice,'alloy');assert.deepEqual(result.secrets,{openai:'fixture-key'});assert.equal(calls.length,1);assert.equal(calls[0].input.id,'qiaomu-audio-dsh-tts-openai');service.dispose();await assert.rejects(service.exportSpeechSettings(),/disconnected/);
+});
+test('late export and credential failures cannot return partial secrets',async()=>{
+ const gate=deferred();const service=createSharedAudioService({load:()=>gate.promise});const pending=service.exportSpeechSettings({includeSecrets:true});service.dispose();gate.resolve({data:{settings:{}}});await assert.rejects(pending,/disconnected/);
+ const bad=createSharedAudioService({load:async()=>({data:{settings:{tts:{provider:'openai',profiles:{openai:{}}}}}}),operation:async()=>({failure:{message:'redacted'}})});await assert.rejects(bad.exportSpeechSettings({includeSecrets:true}),/Could not read/);bad.dispose();
+});
