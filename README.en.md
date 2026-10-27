@@ -15,7 +15,7 @@ Export MP3 or landscape/portrait MP4 with the original four visual styles, subti
 Requires Harness **>=0.2.1-rc.3 <0.3.0**. Download the tgz from [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases), install and enable it through Harness plugin management, then open Qiaomu Audio in the sidebar.
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.2.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.3.tgz
 ```
 
 Notes default to `DSH_HOME/qiaomu/qiaomu-audio-dsh/notes`, with settings/drafts in the adjacent `state.json`; `DSH_HOME` defaults to `~/.dsh`. Optional absolute `notesDir` and `dataDir` plugin configuration values are supported. Original Obsidian data is preserved.

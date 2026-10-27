@@ -1,3 +1,4 @@
+import {ttsCredentialProviders} from './tts-credentials.js';
 import React,{useEffect,useRef} from 'react';
 import {enhance,createEl,Modal,Notice,disposeSurfaces,setPlatform,setIcon} from './harness-ui.ts';
 import {NativeBridge,fromBase64,toBase64} from './native-bridge.js';
@@ -19,7 +20,7 @@ export async function mountAudio(root,api,{actions,language}={}){
  const [loaded,info,assetList]=await Promise.all([api.load(),api.info(),api.assets()]);setPlatform(info);initLanguage(language||document.documentElement.lang||'zh');enhance(root);root.empty();
  let draftTimer;let revision=loaded.revision,saveQueue=Promise.resolve(),closed=false,doc=loaded.data.document||{path:'语音笔记.md',text:'',etag:null},dirty=false,assetFiles=assetList;
  const bridge=new NativeBridge(api,actions?.speechImporter),disposers=[],secrets=new Map(),settings=normalizeSettings(loaded.data.settings);
- const keys=[...Object.keys(settings.tts.profiles).filter(id=>!['system','macos','edge','localModel'].includes(id)).map(id=>ttsSecretId(id,'qiaomu-audio-dsh')),...settings.asr.profiles.map(p=>asrSecretId(p.id,p.provider))];
+ const keys=[...ttsCredentialProviders(settings.tts).map(id=>ttsSecretId(id,'qiaomu-audio-dsh')),...settings.asr.profiles.map(p=>asrSecretId(p.id,p.provider))];
  await Promise.all(keys.map(async id=>{secrets.set(id,(await bridge.call('secrets',{operation:'get',id})).value);}));
  const header=root.createDiv('view-header'),tools=header.createDiv('view-actions'),editorRoot=root.createDiv('view-content'),status=root.createDiv('qaudio-dsh-status');
  const saveSettings=()=>{const data={settings:normalizeSettings(plugin.settings),document:{...doc,draftPath:name.value,text:view.editor.getValue()}};saveQueue=saveQueue.catch(()=>{}).then(async()=>{const result=await api.save({revision,data});revision=result.revision;actions?.settingsChanged?.();});return saveQueue;};
