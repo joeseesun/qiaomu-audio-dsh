@@ -1,5 +1,7 @@
 # 乔木语音 · DeepSeek Harness
 
+> v0.1.4：DeepSeek Harness **0.2.1-rc.3** 兼容更新。[本次验证范围](docs/RC3-COMPATIBILITY.md)。
+
 [English](README.en.md) · [功能与验收记录](docs/ADAPTATION.md) · [本机模型安装](docs/local-runtime.md)
 
 把原版乔木语音的朗读、听写和音视频导出带到 DeepSeek Harness。直接保留原版声音选择、播放控制、设置、分享弹窗和 CSS，只适配宿主接口与 Markdown 工作区。
@@ -16,10 +18,10 @@
 
 ## 安装
 
-需要 DeepSeek Harness **>=0.2.1-rc.3 <0.3.0**。从 [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases) 下载 tgz，在 Harness 插件管理中安装并启用，侧栏打开“乔木语音”。也可使用应用自带 CLI：
+需要 DeepSeek Harness **0.2.1-rc.3**。从 [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases) 下载 tgz，在 Harness 插件管理中安装并启用，侧栏打开“乔木语音”。也可使用应用自带 CLI：
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.3.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.4.tgz
 ```
 
 首次选择声音后可试听，再打开或输入 Markdown。默认文件位于 `DSH_HOME/qiaomu/qiaomu-audio-dsh/notes`，设置与草稿单独保存在同级 `state.json`；默认 `DSH_HOME` 为 `~/.dsh`。插件配置可指定绝对 `notesDir`/`dataDir`。不修改原 Obsidian 插件或它的数据。

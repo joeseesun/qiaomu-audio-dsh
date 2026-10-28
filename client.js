@@ -26219,6 +26219,103 @@ function createSharedAudioService(api, { openPanel } = {}) {
   };
 }
 
+// package.json
+var package_default = {
+  name: "qiaomu-audio-dsh",
+  version: "0.1.4",
+  private: true,
+  type: "module",
+  description: "Qiaomu Audio for DeepSeek Harness",
+  license: "GPL-3.0-only",
+  engines: {
+    node: ">=22",
+    dsh: "0.2.1-rc.3"
+  },
+  exports: {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./shared": {
+      types: "./shared.d.ts",
+      import: "./shared.js"
+    },
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  icon: "./icon.svg",
+  files: [
+    "index.js",
+    "client.js",
+    "shared.js",
+    "shared.d.ts",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses"
+  ],
+  scripts: {
+    build: "node scripts/build.mjs",
+    test: "node --import tsx --test tests/*.test.mjs",
+    check: "npm test && npm run build && node scripts/check-package.mjs",
+    prepack: "npm run build && node scripts/check-package.mjs"
+  },
+  devDependencies: {
+    "@breezystack/lamejs": "1.2.7",
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    dompurify: "3.4.17",
+    esbuild: "0.28.1",
+    jsdom: "^29.1.1",
+    lucide: "^1.47.0",
+    "lucide-react": "1.47.0",
+    marked: "18.1.2",
+    "mp4-muxer": "5.2.2",
+    react: "18.3.1",
+    "react-dom": "18.3.1",
+    tsx: "4.20.6",
+    ws: "8.22.0"
+  },
+  peerDependencies: {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.3"
+  },
+  peerDependenciesMeta: {
+    "@deepseek-ai/cordis": {
+      optional: true
+    },
+    "@deepseek-ai/dsh-typert-protocol": {
+      optional: true
+    }
+  },
+  repository: {
+    type: "git",
+    url: "https://github.com/joeseesun/qiaomu-audio-dsh.git"
+  },
+  keywords: [
+    "dsh-plugin",
+    "deepseek-harness",
+    "qiaomu",
+    "audio"
+  ],
+  dsh: {
+    bundle: {
+      patch: "./cordis.patch.yml"
+    },
+    client: {
+      platform: "web",
+      immediately: true,
+      inject: []
+    },
+    meta: {
+      title: "\u4E54\u6728\u8BED\u97F3",
+      description: "Qiaomu Audio for DeepSeek Harness"
+    }
+  }
+};
+
 // src/native-app.jsx
 var import_react4 = __toESM(require("react"), 1);
 
@@ -70367,7 +70464,7 @@ async function mountAudio(root, api, { actions, language: language3 } = {}) {
     }
     return `[${file.name.replace(/([\[\]])/g, "\\$1")}](${"../".repeat(source.length) + target.map(encodeURIComponent).join("/")})`;
   } }, showInFolder: (path) => bridge.reveal(path) };
-  const plugin = { app, bridge, settings, manifest: { id: "qiaomu-audio-dsh", version: "0.1.0" }, voiceCatalogs: {}, saveSettings, register: (fn) => disposers.push(fn), addStatusBarItem: () => status.createSpan(), local: () => bridge, readerSpeechSettings: () => bridge.speechSettings("qiaomu-reader"), importReaderSpeech: () => copySpeechSettings(plugin, "qiaomu-reader"), updateNotes: { addButton: (parent) => parent.createEl("a", { text: "\u66F4\u65B0\u8BB0\u5F55", href: "https://github.com/joeseesun/qiaomu-audio-dsh/releases", attr: { target: "_blank" } }) }, openSettings: (section) => {
+  const plugin = { app, bridge, settings, manifest: { id: "qiaomu-audio-dsh", version: package_default.version }, voiceCatalogs: {}, saveSettings, register: (fn) => disposers.push(fn), addStatusBarItem: () => status.createSpan(), local: () => bridge, readerSpeechSettings: () => bridge.speechSettings("qiaomu-reader"), importReaderSpeech: () => copySpeechSettings(plugin, "qiaomu-reader"), updateNotes: { addButton: (parent) => parent.createEl("a", { text: "\u66F4\u65B0\u8BB0\u5F55", href: "https://github.com/joeseesun/qiaomu-audio-dsh/releases", attr: { target: "_blank" } }) }, openSettings: (section) => {
     const modal = new Modal(app), tab = new AudioSettingTab(app, plugin);
     modal.onOpen = () => {
       tab.containerEl = modal.contentEl;
