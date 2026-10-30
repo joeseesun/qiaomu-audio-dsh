@@ -1,6 +1,6 @@
 # Qiaomu Audio for DeepSeek Harness
 
-> v0.1.4: DeepSeek Harness **0.2.1-rc.3** compatibility update. [Release verification](docs/RC3-COMPATIBILITY.md).
+> v0.1.5: DeepSeek Harness **0.2.1-rc.3** compatibility update. [Release verification](docs/RC3-COMPATIBILITY.md).
 
 [中文](README.md) · [Adaptation evidence](docs/ADAPTATION.md)
 
@@ -17,7 +17,7 @@ Export MP3 or landscape/portrait MP4 with the original four visual styles, subti
 Requires Harness **0.2.1-rc.3**. Download the tgz from [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases), install and enable it through Harness plugin management, then open Qiaomu Audio in the sidebar.
 
 ```sh
-dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.4.tgz
+dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.5.tgz
 ```
 
 Notes default to `DSH_HOME/qiaomu/qiaomu-audio-dsh/notes`, with settings/drafts in the adjacent `state.json`; `DSH_HOME` defaults to `~/.dsh`. Optional absolute `notesDir` and `dataDir` plugin configuration values are supported. Original Obsidian data is preserved.
