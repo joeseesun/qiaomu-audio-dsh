@@ -49,3 +49,5 @@ Cordis 客户端通过可选注入 `qiaomuAudio` 使用 `speak`、`stop`、`tran
 `createSpeechBridge()` 为 Reader/RSS 提供独立的原生合成、音色目录和本地模型接口；`coordinateSpeech()` 协调跨插件播放。消费者在卸载时释放 bridge 与协调句柄。
 
 `exportSpeechSettings()` 供 RSS 的原版设置页发现当前语音配置，不读取密钥；用户点击导入时才调用 `exportSpeechSettings({includeSecrets:true})`。返回值仅用于向目标系统凭据库复制，不写入 JSON。
+
+本次 Harness rc.5 支持范围与实测边界见 [兼容验证记录](docs/RC5-COMPATIBILITY.md)。

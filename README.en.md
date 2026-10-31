@@ -41,3 +41,5 @@ GPL-3.0-only, adapted from [qiaomu-audio](https://github.com/joeseesun/qiaomu-au
 `createSpeechBridge()` provides independent native synthesis, voice catalogs and local models for Reader/RSS. `coordinateSpeech()` coordinates playback ownership. Dispose both handles when the consumer unloads.
 
 `exportSpeechSettings()` discovers the Audio TTS configuration without reading credentials. Only an explicit import action requests `exportSpeechSettings({includeSecrets:true})`; consumers copy keys to their OS credential store, never JSON settings.
+
+See the [Harness rc.5 compatibility record](docs/RC5-COMPATIBILITY.md) for tested paths and limitations.
