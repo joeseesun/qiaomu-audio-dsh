@@ -1,6 +1,6 @@
 # 乔木语音 · DeepSeek Harness
 
-> v0.1.6：DeepSeek Harness **0.2.1-rc.3** 兼容更新。[本次验证范围](docs/RC3-COMPATIBILITY.md)。
+> v0.1.6：DeepSeek Harness **0.2.2-rc.1** 兼容更新。[本次验证范围](docs/DSH-0.2.2-RC1.md)。
 
 [English](README.en.md) · [功能与验收记录](docs/ADAPTATION.md) · [本机模型安装](docs/local-runtime.md)
 
@@ -18,7 +18,7 @@
 
 ## 安装
 
-需要 DeepSeek Harness **0.2.1-rc.3**。从 [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases) 下载 tgz，在 Harness 插件管理中安装并启用，侧栏打开“乔木语音”。也可使用应用自带 CLI：
+需要 DeepSeek Harness **0.2.2-rc.1**。从 [Releases](https://github.com/joeseesun/qiaomu-audio-dsh/releases) 下载 tgz，在 Harness 插件管理中安装并启用，侧栏打开“乔木语音”。也可使用应用自带 CLI：
 
 ```sh
 dsh plugin --profile YOUR_PROFILE add /absolute/path/qiaomu-audio-dsh-0.1.6.tgz
